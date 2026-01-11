@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GST Vendor Khata - Print & Share</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QR Code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #1f2937;
+            --light: #f3f4f6;
+            --white: #ffffff;
+            --border: #e5e7eb;
+            --sidebar-width: 260px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--light); color: var(--dark); overflow: hidden; }
+
+        /* Layout */
+        .app-container { display: flex; height: 100vh; }
+        .sidebar { width: var(--sidebar-width); background: var(--white); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 15px; flex-shrink: 0; }
+        .main-content { flex-grow: 1; padding: 25px; overflow-y: auto; position: relative; }
+
+        @media (max-width: 900px) {
+            .sidebar { display: none; } /* Simplified mobile view */
+        }
+
+        /* Sidebar */
+        .brand { font-size: 1.3rem; font-weight: 700; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+        .nav-link { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 8px; text-decoration: none; color: var(--dark); margin-bottom: 5px; cursor: pointer; font-weight: 500; transition: 0.2s; }
+        .nav-link:hover, .nav-link.active { background-color: var(--primary); color: var(--white); }
+
+        /* Generic */
+        .hidden { display: none !important; }
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--secondary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-whatsapp { background: #25D366; color: white; }
+        .btn-outline { border: 1px solid var(--border); background: white; color: var(--dark); }
+        .form-control { padding: 10px; border: 1px solid var(--border); border-radius: 6px; width: 100%; margin-bottom: 10px; }
+        
+        /* Dashboard Grid */
+        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .card { background: var(--white); padding: 15px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .val { font-size: 1.5rem; font-weight: bold; margin-top: 5px; }
+
+        /* POS Layout */
+        .pos-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .cart-box { background: white; padding: 20px; border-radius: 8px; border: 1px solid var(--border); height: fit-content; }
+        .item-list { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); margin: 10px 0; border-radius: 4px; }
+        .cart-row { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        th { background: #f9fafb; font-weight: 600; }
+        .badge { padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+        .bg-green { background: #d1fae5; color: #065f46; }
+        .bg-red { background: #fee2e2; color: #991b1b; }
+
+        /* Modals */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal { background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; position: relative; }
+        
+        /* Invoice Print Styles */
+        #invoice-view { display: none; background: white; padding: 40px; border: 1px solid #ddd; }
+        
+        /* PRINT MEDIA QUERY - This ensures only the invoice prints */
+        @media print {
+            body * { visibility: hidden; }
+            #invoice-view, #invoice-view * { visibility: visible; }
+            #invoice-view { position: absolute; left: 0; top: 0; width: 100%; padding: 0; border: none; }
+            .no-print { display: none !important; }
+        }
+        
+        /* Invoice Design inside Modal */
+        .inv-header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid var(--dark); padding-bottom: 20px; }
+        .inv-grid { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 20px; }
+        .inv-total { text-align: right; margin-top: 30px; font-size: 1.2rem; }
+        .qr-place { display: flex; justify-content: center; margin-top: 20px; }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar no-print">
+        <div class="brand"><i class="fa-solid fa-file-invoice-dollar"></i> GST Khata</div>
+        <nav>
+            <div class="nav-link active" onclick="nav('dash')"><i class="fa-solid fa-chart-line"></i> Dashboard</div>
+            <div class="nav-link" onclick="nav('sale')"><i class="fa-solid fa-shop"></i> Sales / Billing</div>
+            <div class="nav-link" onclick="nav('purchase')"><i class="fa-solid fa-cart-shopping"></i> Purchase Entry</div>
+            <div class="nav-link" onclick="nav('accounts')"><i class="fa-solid fa-wallet"></i> Accounts / Dues</div>
+            <div class="nav-link" onclick="nav('products')"><i class="fa-solid fa-box"></i> Products</div>
+            <div class="nav-link" onclick="nav('entities')"><i class="fa-solid fa-users"></i> Customers & Vendors</div>
+            <div class="nav-link" onclick="nav('history')"><i class="fa-solid fa-clock-rotate-left"></i> History</div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        
+        <!-- DASHBOARD -->
+        <section id="dash" class="section">
+            <h2 style="margin-bottom:20px">Business Overview</h2>
+            <div class="grid-4">
+                <div class="card"><div>Total Sales</div><div class="val" id="d-sales">₹0</div></div>
+                <div class="card"><div>Total Purchases</div><div class="val" id="d-purchase">₹0</div></div>
+                <div class="card"><div>Receivables (Due)</div><div class="val" style="color:var(--warning)" id="d-receivables">₹0</div></div>
+                <div class="card"><div>Payables (Due)</div><div class="val" style="color:var(--danger)" id="d-payables">₹0</div></div>
+            </div>
+            <div class="card">
+                <h3>Recent Transactions</h3>
+                <table id="dash-table">
+                    <thead><tr><th>Date</th><th>Type</th><th>Party</th><th>Total</th><th>Status</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- SALES POS -->
+        <section id="sale" class="section hidden">
+            <h2 style="margin-bottom:20px">New Sale Invoice</h2>
+            <div class="pos-grid">
+                <div class="card">
+                    <h3>Add Items</h3>
+                    <input type="text" id="sale-scan" class="form-control" placeholder="Scan Barcode or type name..." oninput="searchProduct('sale', this.value)">
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <select id="sale-select" class="form-control" style="margin:0" onchange="setSaleItem()"></select>
+                        <input type="number" id="sale-qty" class="form-control" placeholder="Qty" style="width:80px; margin:0" value="1">
+                        <button class="btn btn-primary" style="margin:0" onclick="addToCart('sale')">Add</button>
+                    </div>
+                </div>
+                <div class="cart-box">
+                    <h3>Cart</h3>
+                    <div class="item-list" id="sale-cart-list"></div>
+                    <div style="margin-top:15px; border-top:1px solid #ddd; padding-top:10px;">
+                        <label>GST %</label>
+                        <input type="number" id="sale-gst" class="form-control" value="0" style="margin-bottom:5px">
+                        <div style="display:flex; justify-content:space-between; font-weight:bold">
+                            <span>Subtotal:</span> <span id="sale-subtotal">₹0</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; color:var(--primary)">
+                            <span>GST:</span> <span id="sale-tax-amt">₹0</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:1.2rem; margin-top:5px;">
+                            <span>Grand Total:</span> <span id="sale-total">₹0</span>
+                        </div>
+                    </div>
+                    <div style="margin-top:15px;">
+                        <label>Customer</label>
+                        <select id="sale-customer" class="form-control"></select>
+                        <label>Payment Status</label>
+                        <select id="sale-status" class="form-control">
+                            <option value="paid">Paid (Cash/UPI)</option>
+                            <option value="due">Credit / Unpaid</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-success" style="width:100%; margin-top:15px;" onclick="finalize('sale')">Generate Invoice</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- PURCHASE -->
+        <section id="purchase" class="section hidden">
+            <h2 style="margin-bottom:20px">New Purchase Invoice</h2>
+            <div class="pos-grid">
+                <div class="card">
+                    <h3>Add Items</h3>
+                    <input type="text" id="pur-scan" class="form-control" placeholder="Scan Barcode..." oninput="searchProduct('pur', this.value)">
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <select id="pur-select" class="form-control" style="margin:0" onchange="setPurItem()"></select>
+                        <input type="number" id="pur-qty" class="form-control" placeholder="Qty" style="width:80px; margin:0" value="1">
+                        <input type="number" id="pur-cost" class="form-control" placeholder="Cost/Unit" style="width:100px; margin:0">
+                        <button class="btn btn-primary" style="margin:0" onclick="addToCart('pur')">Add</button>
+                    </div>
+                </div>
+                <div class="cart-box">
+                    <h3>Cart</h3>
+                    <div class="item-list" id="pur-cart-list"></div>
+                    <div style="margin-top:15px; border-top:1px solid #ddd; padding-top:10px;">
+                        <label>GST %</label>
+                        <input type="number" id="pur-gst" class="form-control" value="0">
+                        <div style="display:flex; justify-content:space-between; font-weight:bold">
+                            <span>Subtotal:</span> <span id="pur-subtotal">₹0</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; color:var(--primary)">
+                            <span>GST:</span> <span id="pur-tax-amt">₹0</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:1.2rem; margin-top:5px;">
+                            <span>Grand Total:</span> <span id="pur-total">₹0</span>
+                        </div>
+                    </div>
+                    <div style="margin-top:15px;">
+                        <label>Supplier</label>
+                        <select id="pur-supplier" class="form-control"></select>
+                        <label>Payment Status</label>
+                        <select id="pur-status" class="form-control">
+                            <option value="paid">Paid</option>
+                            <option value="due">Credit / Unpaid</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" style="width:100%; margin-top:15px;" onclick="finalize('pur')">Record Purchase</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ACCOUNTS / REMINDERS -->
+        <section id="accounts" class="section hidden">
+            <h2 style="margin-bottom:20px">Accounts & Payment Reminders</h2>
+            
+            <div class="grid-4">
+                <div class="card" style="border-left: 5px solid var(--warning)">
+                    <h3>Customers Who Owe You</h3>
+                    <div id="receivables-list" style="margin-top:15px; max-height:200px; overflow-y:auto"></div>
+                </div>
+                <div class="card" style="border-left: 5px solid var(--danger)">
+                    <h3>Suppliers You Owe</h3>
+                    <div id="payables-list" style="margin-top:15px; max-height:200px; overflow-y:auto"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- PRODUCTS -->
+        <section id="products" class="section hidden">
+            <div style="display:flex; justify-content:space-between">
+                <h2>Products</h2>
+                <button class="btn btn-primary" onclick="openModal('prodModal')">+ Add Product</button>
+            </div>
+            <div class="card">
+                <table id="prod-table">
+                    <thead><tr><th>Name</th><th>Barcode</th><th>Sell Price</th><th>Stock</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ENTITIES -->
+        <section id="entities" class="section hidden">
+            <div style="display:flex; justify-content:space-between">
+                <h2>Customers & Vendors</h2>
+                <div>
+                    <button class="btn btn-primary" onclick="openModal('custModal')">+ Customer</button>
+                    <button class="btn btn-outline" onclick="openModal('supModal')">+ Supplier</button>
+                </div>
+            </div>
+            <div class="grid-4" id="entity-grid"></div>
+        </section>
+
+        <!-- HISTORY -->
+        <section id="history" class="section hidden">
+            <h2>Transaction History</h2>
+            <div class="card">
+                <table id="trans-table">
+                    <thead><tr><th>Date</th><th>Type</th><th>Invoice #</th><th>Party</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- INVOICE PRINT VIEW (Hidden normally, Visible for Print) -->
+<div id="invoice-view">
+    <div style="display:flex; justify-content:space-between; border-bottom:2px solid #000; padding-bottom:20px;">
+        <div>
+            <h1 style="margin:0">INVOICE</h1>
+            <p style="margin:5px 0; color:#666" id="inv-type">TAX INVOICE</p>
+        </div>
+        <div style="text-align:right">
+            <h3 style="margin:0">My Company Name</h3>
+            <p>123 Business Road, City</p>
+            <p>GSTIN: 22AAAAA0000A1Z5</p>
+        </div>
+    </div>
+
+    <div class="inv-grid" style="margin-top:30px; border:1px solid #ddd; padding:15px;">
+        <div>
+            <strong>Bill To:</strong><br>
+            <span id="inv-name">Name</span><br>
+            <span id="inv-address">Address</span>
+        </div>
+        <div style="text-align:right">
+            <strong>Invoice Details:</strong><br>
+            Invoice #: <span id="inv-id">123</span><br>
+            Date: <span id="inv-date">2023-01-01</span>
+        </div>
+    </div>
+
+    <table style="width:100%; margin-top:20px; border-collapse:collapse;">
+        <thead style="background:#eee;">
+            <tr>
+                <th style="border:1px solid #ddd; padding:8px; text-align:left">#</th>
+                <th style="border:1px solid #ddd; padding:8px; text-align:left">Item</th>
+                <th style="border:1px solid #ddd; padding:8px; text-align:right">Qty</th>
+                <th style="border:1px solid #ddd; padding:8px; text-align:right">Price</th>
+                <th style="border:1px solid #ddd; padding:8px; text-align:right">Total</th>
+            </tr>
+        </thead>
+        <tbody id="inv-items">
+            <!-- Items -->
+        </tbody>
+    </table>
+
+    <div class="inv-total">
+        <table style="width:300px; float:right; border-collapse:collapse;">
+            <tr><td style="padding:5px; text-align:right">Subtotal:</td><td style="padding:5px; text-align:right" id="inv-sub">₹0</td></tr>
+            <tr><td style="padding:5px; text-align:right">GST (<span id="inv-gst-rate">0</span>%):</td><td style="padding:5px; text-align:right" id="inv-tax">₹0</td></tr>
+            <tr style="background:#eee; font-weight:bold"><td style="padding:10px; text-align:right">Grand Total:</td><td style="padding:10px; text-align:right" id="inv-grand">₹0</td></tr>
+        </table>
+        <div style="clear:both"></div>
+    </div>
+
+    <div class="qr-place">
+        <div id="qrcode"></div>
+    </div>
+
+    <div style="margin-top:50px; text-align:center; border-top:1px solid #ddd; padding-top:10px;">
+        <p>Thank you for your business!</p>
+        <p>Terms: Payment due within 30 days.</p>
+    </div>
+    
+    <div class="no-print" style="margin-top:20px; display:flex; gap:10px; justify-content:center;">
+        <button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
+        <button class="btn btn-whatsapp" onclick="shareInvoiceWhatsapp()"><i class="fa-brands fa-whatsapp"></i> Share Invoice</button>
+        <button class="btn btn-outline" onclick="document.getElementById('invoice-view').style.display='none'">Close</button>
+    </div>
+</div>
+
+<!-- Modals -->
+<div id="prodModal" class="modal-overlay">
+    <div class="modal" style="max-width:400px">
+        <h3>Add Product</h3>
+        <input id="p-name" class="form-control" placeholder="Product Name">
+        <input id="p-barcode" class="form-control" placeholder="Barcode">
+        <input id="p-price" type="number" class="form-control" placeholder="Selling Price">
+        <input id="p-stock" type="number" class="form-control" placeholder="Initial Stock">
+        <button class="btn btn-primary" onclick="addProduct()">Save</button>
+        <button class="btn btn-outline" onclick="document.getElementById('prodModal').style.display='none'">Cancel</button>
+    </div>
+</div>
+
+<div id="custModal" class="modal-overlay">
+    <div class="modal" style="max-width:400px">
+        <h3>Add Customer</h3>
+        <input id="c-name" class="form-control" placeholder="Name">
+        <input id="c-phone" class="form-control" placeholder="Phone (without country code)">
+        <button class="btn btn-primary" onclick="addEntity('customer')">Save</button>
+        <button class="btn btn-outline" onclick="document.getElementById('custModal').style.display='none'">Cancel</button>
+    </div>
+</div>
+
+<div id="supModal" class="modal-overlay">
+    <div class="modal" style="max-width:400px">
+        <h3>Add Supplier</h3>
+        <input id="s-name" class="form-control" placeholder="Name">
+        <input id="s-phone" class="form-control" placeholder="Phone">
+        <button class="btn btn-primary" onclick="addEntity('supplier')">Save</button>
+        <button class="btn btn-outline" onclick="document.getElementById('supModal').style.display='none'">Cancel</button>
+    </div>
+</div>
+
+<script>
+    // --- DATA ---
+    let db = {
+        products: JSON.parse(localStorage.getItem('g_products')) || [],
+        customers: JSON.parse(localStorage.getItem('g_customers')) || [],
+        suppliers: JSON.parse(localStorage.getItem('g_suppliers')) || [],
+        transactions: JSON.parse(localStorage.getItem('g_transactions')) || []
+    };
+
+    let saleCart = [];
+    let purCart = [];
+    let currentInvoice = null;
+
+    function save() {
+        localStorage.setItem('g_products', JSON.stringify(db.products));
+        localStorage.setItem('g_customers', JSON.stringify(db.customers));
+        localStorage.setItem('g_suppliers', JSON.stringify(db.suppliers));
+        localStorage.setItem('g_transactions', JSON.stringify(db.transactions));
+    }
+
+    // --- NAVIGATION ---
+    function nav(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+        document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        
+        if(id==='dash') renderDash();
+        if(id==='products') renderProducts();
+        if(id==='entities') renderEntities();
+        if(id==='history') renderHistory();
+        if(id==='accounts') renderAccounts();
+    }
+
+    // --- ENTITIES ---
+    function addEntity(type) {
+        const name = document.getElementById(type==='customer'?'c-name':'s-name').value;
+        const phone = document.getElementById(type==='customer'?'c-phone':'s-phone').value;
+        if(!name) return;
+        
+        const obj = { id: Date.now().toString(), name, phone };
+        if(type==='customer') db.customers.push(obj);
+        else db.suppliers.push(obj);
+        
+        save();
+        document.getElementById(type==='customer'?'custModal':'supModal').style.display='none';
+        renderEntities();
+        updateDropdowns();
+    }
+
+    function renderEntities() {
+        const grid = document.getElementById('entity-grid');
+        let html = '';
+        db.customers.forEach(c => html+= `<div class="card"><h3>${c.name}</h3><small>${c.phone}</small><br><span class="badge bg-green">Customer</span></div>`);
+        db.suppliers.forEach(s => html+= `<div class="card"><h3>${s.name}</h3><small>${s.phone}</small><br><span class="badge bg-red">Supplier</span></div>`);
+        grid.innerHTML = html || '<p>No records found</p>';
+    }
+
+    // --- PRODUCTS ---
+    function addProduct() {
+        const name = document.getElementById('p-name').value;
+        const barcode = document.getElementById('p-barcode').value;
+        const price = parseFloat(document.getElementById('p-price').value);
+        const stock = parseInt(document.getElementById('p-stock').value) || 0;
+        
+        db.products.push({ id: Date.now().toString(), name, barcode, price, stock });
+        save();
+        document.getElementById('prodModal').style.display='none';
+        renderProducts();
+        updateDropdowns();
+    }
+
+    function renderProducts() {
+        const tbody = document.querySelector('#prod-table tbody');
+        tbody.innerHTML = db.products.map(p => `<tr><td>${p.name}</td><td>${p.barcode}</td><td>₹${p.price}</td><td>${p.stock}</td></tr>`).join('');
+    }
+
+    // --- DROPDOWNS & SEARCH ---
+    function updateDropdowns() {
+        const customers = '<option value="">Walk-in Customer</option>' + db.customers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        document.getElementById('sale-customer').innerHTML = customers;
+        
+        const suppliers = '<option value="">Select Supplier</option>' + db.suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        document.getElementById('pur-supplier').innerHTML = suppliers;
+    }
+
+    function searchProduct(type, txt) {
+        const sel = document.getElementById(type+'-select');
+        const filtered = db.products.filter(p => p.name.toLowerCase().includes(txt.toLowerCase()) || p.barcode.includes(txt));
+        sel.innerHTML = filtered.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} (₹${p.price})</option>`).join('');
+        if(filtered.length === 1) {
+            // Auto select if exact match found (simple logic)
+            sel.selectedIndex = 0;
+            if(type==='sale') setSaleItem();
+        }
+    }
+
+    function setSaleItem() {
+        const sel = document.getElementById('sale-select');
+        if(sel.selectedIndex === -1) return;
+        document.getElementById('sale-scan').value = sel.options[sel.selectedIndex].text;
+    }
+    function setPurItem() {
+        const sel = document.getElementById('pur-select');
+        if(sel.selectedIndex === -1) return;
+        document.getElementById('pur-scan').value = sel.options[sel.selectedIndex].text;
+    }
+
+    // --- CART LOGIC ---
+    function addToCart(type) {
+        const sel = document.getElementById(type+'-select');
+        const prodId = sel.value;
+        const qty = parseInt(document.getElementById(type+'-qty').value);
+        const product = db.products.find(p => p.id === prodId);
+        
+        if(!product) return;
+        if(product.stock < qty && type === 'sale') return alert('Not enough stock!');
+
+        const cost = type === 'pur' ? parseFloat(document.getElementById('pur-cost').value) : product.price;
+        
+        const cartItem = { productId: prodId, name: product.name, qty, price: cost, total: qty * cost };
+        
+        if(type === 'sale') saleCart.push(cartItem);
+        else purCart.push(cartItem);
+        
+        renderCart(type);
+        sel.value = ""; // Reset
+    }
+
+    function renderCart(type) {
+        const list = document.getElementById(type+'-cart-list');
+        const cart = type==='sale'?saleCart:purCart;
+        let subtotal = 0;
+        
+        list.innerHTML = cart.map((item, idx) => {
+            subtotal += item.total;
+            return `<div class="cart-row">
+                <div>${item.name} <br> x${item.qty} @ ${item.price}</div>
+                <div>
+                    ₹${item.total.toFixed(2)}
+                    <i class="fa fa-times text-red" style="color:red; cursor:pointer" onclick="removeCart('${type}', ${idx})"></i>
+                </div>
+            </div>`;
+        }).join('');
+        
+        const gstRate = parseFloat(document.getElementById(type+'-gst').value) || 0;
+        const gstAmt = (subtotal * gstRate) / 100;
+        const grand = subtotal + gstAmt;
+
+        document.getElementById(type+'-subtotal').innerText = '₹' + subtotal.toFixed(2);
+        document.getElementById(type+'-tax-amt').innerText = '₹' + gstAmt.toFixed(2);
+        document.getElementById(type+'-total').innerText = '₹' + grand.toFixed(2);
+    }
+
+    function removeCart(type, idx) {
+        if(type==='sale') saleCart.splice(idx, 1);
+        else purCart.splice(idx, 1);
+        renderCart(type);
+    }
+
+    // --- FINALIZE & INVOICE ---
+    function finalize(type) {
+        const cart = type==='sale'?saleCart:purCart;
+        if(cart.length === 0) return alert("Cart is empty");
+        
+        const entityId = document.getElementById(type+'-customer').value || document.getElementById(type+'-supplier').value;
+        const gst = parseFloat(document.getElementById(type+'-gst').value) || 0;
+        const subtotal = cart.reduce((s,i)=>s+i.total, 0);
+        const gstAmt = subtotal * (gst/100);
+        const total = subtotal + gstAmt;
+        const status = document.getElementById(type+'-status').value; // 'paid' or 'due'
+
+        // Find entity
+        let partyName = "Unknown";
+        let partyPhone = "";
+        const list = type==='sale' ? db.customers : db.suppliers;
+        const ent = list.find(e => e.id === entityId);
+        if(ent) { partyName = ent.name; partyPhone = ent.phone; }
+
+        // Update Stock
+        cart.forEach(item => {
+            const p = db.products.find(x => x.id === item.productId);
+            if(p) {
+                p.stock += (type==='sale' ? -item.qty : item.qty);
+            }
+        });
+
+        // Save Transaction
+        const trans = {
+            id: Date.now().toString(),
+            date: new Date().toISOString(),
+            type, // 'sale' or 'purchase'
+            partyId: entityId,
+            partyName,
+            partyPhone,
+            items: [...cart],
+            subtotal, gst, gstAmt, total, status
+        };
+
+        db.transactions.unshift(trans);
+        save();
+
+        // Clear Cart
+        if(type==='sale') saleCart=[]; else purCart=[];
+        renderCart(type);
+
+        // Show Invoice
+        showInvoice(trans);
+        renderDash();
+    }
+
+    function showInvoice(trans) {
+        currentInvoice = trans;
+        document.getElementById('invoice-view').style.display = 'block';
+        
+        document.getElementById('inv-type').innerText = trans.type === 'sale' ? 'TAX INVOICE (SALE)' : 'PURCHASE INVOICE';
+        document.getElementById('inv-name').innerText = trans.partyName;
+        document.getElementById('inv-id').innerText = "#" + trans.id.substr(-6);
+        document.getElementById('inv-date').innerText = new Date(trans.date).toLocaleDateString();
+        
+        document.getElementById('inv-items').innerHTML = trans.items.map((i, idx) => `
+            <tr>
+                <td style="border:1px solid #ddd; padding:8px;">${idx+1}</td>
+                <td style="border:1px solid #ddd; padding:8px;">${i.name}</td>
+                <td style="border:1px solid #ddd; padding:8px; text-align:right">${i.qty}</td>
+                <td style="border:1px solid #ddd; padding:8px; text-align:right">${i.price}</td>
+                <td style="border:1px solid #ddd; padding:8px; text-align:right">${i.total.toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        document.getElementById('inv-sub').innerText = '₹' + trans.subtotal.toFixed(2);
+        document.getElementById('inv-gst-rate').innerText = trans.gst;
+        document.getElementById('inv-tax').innerText = '₹' + trans.gstAmt.toFixed(2);
+        document.getElementById('inv-grand').innerText = '₹' + trans.total.toFixed(2);
+
+        // Generate QR
+        document.getElementById('qrcode').innerHTML = "";
+        const qrData = `Invoice #${trans.id}\nTotal: ₹${trans.total}\nParty: ${trans.partyName}`;
+        new QRCode(document.getElementById("qrcode"), { text: qrData, width: 100, height: 100 });
+    }
+
+    // --- WHATSAPP SHARE ---
+    function shareInvoiceWhatsapp() {
+        if(!currentInvoice) return;
+        const t = currentInvoice;
+        // Format Message
+        let msg = `*${t.type.toUpperCase()} INVOICE*\n`;
+        msg += `Invoice #: #${t.id.substr(-6)}\n`;
+        msg += `Date: ${new Date(t.date).toLocaleDateString()}\n`;
+        msg += `To: ${t.partyName}\n\n`;
+        msg += `*Items:*\n`;
+        t.items.forEach(i => msg += `- ${i.name} x${i.qty} = ₹${i.total}\n`);
+        msg += `\n*Subtotal:* ₹${t.subtotal}\n`;
+        msg += `*GST (${t.gst}%):* ₹${t.gstAmt}\n`;
+        msg += `*Grand Total:* ₹${t.total}\n`;
+        msg += `\nStatus: ${t.status.toUpperCase()}`;
+
+        // If phone exists, send to specific number, else just open wa.me
+        let phone = t.partyPhone ? t.partyPhone : "";
+        // Clean phone (remove spaces, dashes)
+        if(phone) phone = phone.replace(/[^0-9]/g, '');
+
+        const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+        window.open(url, '_blank');
+    }
+
+    function sendReminder(phone, amount, name) {
+        const msg = `Hello ${name},\n\nThis is a friendly reminder regarding your outstanding payment of ₹${amount}. Please clear the dues at your earliest convenience.\n\nThank you.`;
+        const url = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`;
+        window.open(url, '_blank');
+    }
+
+    // --- ACCOUNTS / DASHBOARD ---
+    function renderAccounts() {
+        // Calculate Balances
+        let rec = {}; // Customer -> Amount
+        let pay = {}; // Supplier -> Amount
+
+        db.transactions.forEach(t => {
+            if(t.status === 'due') {
+                if(t.type === 'sale') {
+                    rec[t.partyId] = (rec[t.partyId] || 0) + t.total;
+                } else {
+                    pay[t.partyId] = (pay[t.partyId] || 0) + t.total;
+                }
+            }
+        });
+
+        // Render Receivables
+        const recDiv = document.getElementById('receivables-list');
+        recDiv.innerHTML = Object.keys(rec).map(id => {
+            const c = db.customers.find(x => x.id === id) || {name: 'Deleted Customer', phone:''};
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding:5px;">
+                    <span>${c.name}</span>
+                    <div>
+                        <strong>₹${rec[id]}</strong>
+                        <button class="btn btn-whatsapp" style="padding:2px 5px; font-size:0.8rem" onclick="sendReminder('${c.phone}', ${rec[id]}, '${c.name}')">Remind</button>
+                    </div>
+                </div>`;
+        }).join('') || '<p>No dues.</p>';
+
+        // Render Payables
+        const payDiv = document.getElementById('payables-list');
+        payDiv.innerHTML = Object.keys(pay).map(id => {
+            const s = db.suppliers.find(x => x.id === id) || {name: 'Deleted Supplier', phone:''};
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding:5px;">
+                    <span>${s.name}</span>
+                    <div>
+                        <strong>₹${pay[id]}</strong>
+                        <button class="btn btn-whatsapp" style="padding:2px 5px; font-size:0.8rem" onclick="sendReminder('${s.phone}', ${pay[id]}, '${s.name}')">Remind</button>
+                    </div>
+                </div>`;
+        }).join('') || '<p>No dues.</p>';
+    }
+
+    function renderDash() {
+        const sales = db.transactions.filter(t => t.type === 'sale').reduce((s,t)=>s+t.total, 0);
+        const purch = db.transactions.filter(t => t.type === 'purchase').reduce((s,t)=>s+t.total, 0);
+
+        let recTotal = 0, payTotal = 0;
+        db.transactions.forEach(t => {
+            if(t.status === 'due') {
+                if(t.type === 'sale') recTotal += t.total;
+                else payTotal += t.total;
+            }
+        });
+
+        document.getElementById('d-sales').innerText = '₹' + sales.toFixed(2);
+        document.getElementById('d-purchase').innerText = '₹' + purch.toFixed(2);
+        document.getElementById('d-receivables').innerText = '₹' + recTotal.toFixed(2);
+        document.getElementById('d-payables').innerText = '₹' + payTotal.toFixed(2);
+
+        // Recent Table
+        const tbody = document.querySelector('#dash-table tbody');
+        tbody.innerHTML = db.transactions.slice(0,5).map(t => `
+            <tr>
+                <td>${new Date(t.date).toLocaleDateString()}</td>
+                <td><span class="badge ${t.type==='sale'?'bg-green':'bg-red'}">${t.type.toUpperCase()}</span></td>
+                <td>${t.partyName}</td>
+                <td>₹${t.total.toFixed(2)}</td>
+                <td>${t.status.toUpperCase()}</td>
+            </tr>
+        `).join('');
+    }
+
+    function renderHistory() {
+        const tbody = document.querySelector('#trans-table tbody');
+        tbody.innerHTML = db.transactions.map(t => `
+            <tr>
+                <td>${new Date(t.date).toLocaleDateString()}</td>
+                <td>${t.type.toUpperCase()}</td>
+                <td>#${t.id.substr(-6)}</td>
+                <td>${t.partyName}</td>
+                <td>₹${t.total.toFixed(2)}</td>
+                <td><span class="badge ${t.status==='paid'?'bg-green':'bg-red'}">${t.status}</span></td>
+                <td>
+                    <button class="btn btn-outline" style="padding:2px 5px" onclick='showInvoice(${JSON.stringify(t)})'>View</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // --- INIT ---
+    window.onload = function() {
+        renderDash();
+        updateDropdowns();
+        renderEntities();
+    }
+
+    function openModal(id) { document.getElementById(id).style.display='flex'; }
+</script>
+
+</body>
+</html>
